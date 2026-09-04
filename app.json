@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Student Planner",
+    "slug": "student-planner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-notifications", "expo-sqlite"],
+    "ios": { "supportsTablet": true },
+    "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" } }
+  }
+}
