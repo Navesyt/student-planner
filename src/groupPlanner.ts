@@ -4,7 +4,6 @@ export interface TableRow { rowIndex: number; cells: string[]; }
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const compact = (value: unknown) => clean(value).replace(/[^a-z0-9]+/g, '');
-
 const SUBJECT_RE = /math|mathem|phys|chim|si|info|informat|anglais|franc|philo|sport/i;
 const DAY_RE = /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)$/i;
 const TIME_RE = /^(?:[01]?\d|2[0-3])(?:h|:)[0-5]?\d?$/i;
@@ -57,12 +56,11 @@ function findWeekColumns(rows: TableRow[]): WeekColumn[] {
     if (parsed.length < 4) continue;
     let year = parsed[0].date.year;
     let previousMonth = parsed[0].date.month;
-    const normalized = parsed.map((x,i) => {
+    return parsed.map((x,i) => {
       if (i > 0 && x.date.month < previousMonth) year += 1;
       previousMonth = x.date.month;
       return { ...x, date:{ ...x.date, year } };
     });
-    return normalized;
   }
   return [];
 }
@@ -86,7 +84,7 @@ function matchesCell(cell: string, groups: StudentGroups) {
 
 function titleFor(subject: string | undefined, type: AcademicType, cell: string) {
   const label = type === 'kholle' ? 'Khôlle' : type === 'course' ? 'TP' : type === 'assignment' ? 'Devoir' : type === 'exam' ? 'DS / Examen' : 'Événement';
-  return `${label}${subject ? ` — ${subject}` : ''}${cell ? ` · ${cell}` : ''}`;
+  return `${label}${subject ? ` — ${subject}` : ''}`;
 }
 
 export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): AcademicItem[] {
@@ -102,10 +100,13 @@ export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): Ac
       if (subjectOnly) currentSubject = subjectOnly.trim();
       continue;
     }
+
     const text = row.cells.join(' · ');
-    const type = inferType(text);
-    const subject = info.subject ?? currentSubject;
     const weekCells = row.cells.slice(info.timeIndex + 1, info.timeIndex + 1 + weeks.length);
+    const numericWeek = weekCells.some(c => /^\d{1,2}$/.test(compact(c)));
+    const type = numericWeek ? 'kholle' : inferType(text);
+    const subject = info.subject ?? currentSubject;
+
     weeks.forEach((week, weekOffset) => {
       const cell = weekCells[weekOffset] ?? '';
       if (!matchesCell(cell, groups)) return;
