@@ -2,36 +2,41 @@
 
 Application mobile Expo + React Native + TypeScript pour étudiant/prépa.
 
-## MVP inclus
+## Fonctionnalités
 
-- Dashboard avec prochains cours/devoirs et stock faible
+- Dashboard avec prochains éléments et stock faible
 - Inventaire « Ma chambre » avec boutons +/-
 - Planning unifié
-- Modèle de notes sur /20 avec coefficients
+- Événements manuels + événements générés depuis le tableau combiné khôlloscope + TP-scope
+- Profil de groupes : groupe principal, tiers-groupe, demi-groupe et trinôme
+- Import intégré de PDF, Excel et CSV
+- Filtrage automatique des lignes correspondant au profil de groupes
+- Notes sur /20 avec coefficients et moyennes pondérées
 - Français + English
 - SQLite local-first
 - Notifications locales à 19h via `expo-notifications`
-- Mock Pronote derrière une interface `PronoteApi`
-- La synchronisation Pronote ne modifie jamais les entrées `manual`
 
-## Architecture Pronote
+## Import khôlloscope + TP-scope
 
-`src/pronote.ts` expose une interface remplaçable :
+L'utilisateur connaît déjà ses groupes et les renseigne dans l'application. Il peut ensuite importer le tableau combiné depuis :
 
-```ts
-interface PronoteApi {
-  fetchSchedule(from: string, to: string): Promise<AcademicItem[]>;
-  fetchAssignments(from: string, to: string): Promise<AcademicItem[]>;
-}
-```
+- PDF
+- `.xlsx`
+- CSV
 
-Le `MockPronoteApi` peut être remplacé par un adaptateur réel/local sans modifier l'UI ni la base. Pour une intégration réelle, privilégier une passerelle locale : les identifiants Pronote/ENT ne doivent pas être envoyés à un backend tiers.
+Les lignes correspondant au groupe, tiers-groupe, demi-groupe ou trinôme sont transformées en événements du planning.
+
+Les événements générés sont séparés des événements `manual`. Une réimportation remplace uniquement les événements générés et ne modifie jamais les événements créés manuellement.
+
+Le moteur de correspondance et de parsing se trouve dans `src/groupPlanner.ts`, tandis que la sélection et la lecture des fichiers sont dans `src/groupImport.ts`.
+
+Les PDF numériques sont lus localement avec `@paul_sizon/expo-pdf-text-extract`. Cette dépendance native nécessite une Expo development build ; un PDF constitué uniquement d'images nécessitera une future couche OCR.
 
 ## Données
 
-SQLite contient `subjects`, `academic_items`, `inventory_items` et `grades`. Les événements académiques possèdent une origine `pronote` ou `manual`.
+SQLite contient les matières, événements académiques, inventaire, notes, profil de groupes et documents importés.
 
-La synchro fait un upsert uniquement sur `(origin, external_id)` et n'écrase donc pas les éléments manuels.
+Les événements académiques ont désormais deux origines : `manual` et `generated`.
 
 ## Lancer
 
@@ -40,13 +45,12 @@ npm install
 npx expo start
 ```
 
-Puis Android, iOS ou web depuis Expo.
+Pour l'extraction PDF native, utiliser une development build plutôt qu'Expo Go.
 
 ## Prochaines étapes
 
-1. Formulaires CRUD pour événements, devoirs, inventaire et notes.
-2. Vue calendrier jour/semaine.
-3. Calcul des moyennes pondérées.
-4. Export/import JSON versionné.
-5. Adaptateur Pronote local réel avec gestion de session et renouvellement sécurisé.
-6. Tests automatisés de synchronisation et de protection des données manuelles.
+1. Adapter le parsing aux premiers vrais tableaux de la classe.
+2. Ajouter une vue calendrier jour/semaine plus complète.
+3. Ajouter un vrai export/import de fichiers JSON partageables.
+4. Ajouter des tests sur plusieurs formats de tableaux réels.
+5. Ajouter éventuellement l'OCR pour les PDF scannés.
