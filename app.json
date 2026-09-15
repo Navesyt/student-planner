@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-notifications", "expo-sqlite"],
+    "plugins": ["expo-notifications", "expo-sqlite", "expo-document-picker", "@paul_sizon/expo-pdf-text-extract"],
     "ios": { "supportsTablet": true },
     "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" } }
   }
