@@ -7,7 +7,7 @@ import { rowsToAcademicItems, type TableRow } from './groupPlanner';
 export interface ImportedScope { document: ImportedDocument; rows: TableRow[]; }
 
 const id = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-const DATE_TOKEN = /\b\d{1,2}[-/](?:\d{1,2}|janv(?:ier)?|fevr(?:ier)?|mars|avr(?:il)?|mai|juin|juil(?:let)?|aout|sept(?:embre)?|oct(?:obre)?|nov(?:embre)?|dec(?:embre)?)\b/gi;
+const DATE_TOKEN = /\b\d{1,2}[-/](?:\d{1,2}|[A-Za-zÀ-ÿ]+)\b/gi;
 
 function rowsFromSheet(values: unknown[][]): TableRow[] {
   return values.map((row, rowIndex) => ({ rowIndex, cells: row.map(value => String(value ?? '').trim()) })).filter(row => row.cells.some(Boolean));
