@@ -3,31 +3,21 @@ import type { AcademicItem, AcademicType, StudentGroups } from './types';
 export interface TableRow { rowIndex: number; cells: string[]; }
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-const token = (value: unknown) => clean(value).replace(/[^a-z0-9]+/g, ' ').trim();
-const compact = (value: unknown) => token(value).replace(/\s/g, '');
+const compact = (value: unknown) => clean(value).replace(/[^a-z0-9]+/g, '');
 
-const SUBJECT_RE = /math|mathem|phys|chim|si|info|informat|anglais|franc|philo|sport|lv2/i;
+const SUBJECT_RE = /math|mathem|phys|chim|si|info|informat|anglais|franc|philo|sport/i;
 const DAY_RE = /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)$/i;
 const TIME_RE = /^(?:[01]?\d|2[0-3])(?:h|:)[0-5]?\d?$/i;
 const MONTHS: Record<string, number> = { janv:1, janvier:1, fevr:2, fevrier:2, mars:3, avril:4, mai:5, juin:6, juil:7, juillet:7, aout:8, sept:9, septembre:9, oct:10, octobre:10, nov:11, novembre:11, dec:12, decembre:12 };
 
-function groupCandidates(groups: StudentGroups) {
-  return [groups.group, groups.thirdGroup, groups.halfGroup].filter(Boolean).map(compact);
-}
-
-function trinomeCandidate(value?: string) {
-  if (!value) return null;
-  const m = compact(value).match(/^0*(\d{1,3})$/);
-  return m ? Number(m[1]) : null;
-}
+function groupCandidates(groups: StudentGroups) { return [groups.group, groups.thirdGroup, groups.halfGroup].filter(Boolean).map(compact); }
+function trinomeCandidate(value?: string) { const m = value ? compact(value).match(/^0*(\d{1,3})$/) : null; return m ? Number(m[1]) : null; }
 
 export function rowMatchesGroups(row: TableRow, groups: StudentGroups) {
   const groupValues = groupCandidates(groups);
   const trinome = trinomeCandidate(groups.trinome);
   const cells = row.cells.map(compact);
-  if (groupValues.some(g => cells.some(c => c === g))) return true;
-  if (trinome !== null && cells.some(c => /^\d{1,3}$/.test(c) && Number(c) === trinome)) return true;
-  return false;
+  return groupValues.some(g => cells.some(c => c === g)) || (trinome !== null && cells.some(c => /^\d{1,3}$/.test(c) && Number(c) === trinome));
 }
 
 function inferType(text: string): AcademicType {
@@ -48,9 +38,9 @@ function parseDate(value: string, fallbackYear = new Date().getFullYear()) {
   const s = clean(value).replace(/\./g, '');
   let m = s.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\b/);
   if (m) return { day:Number(m[1]), month:Number(m[2]), year:m[3] ? Number(m[3].length === 2 ? `20${m[3]}` : m[3]) : fallbackYear };
-  m = s.match(/\b(\d{1,2})[- ]([a-zàû]+)(?:[- ](\d{2,4}))?\b/i);
+  m = s.match(/\b(\d{1,2})[- ]([a-z]+)(?:[- ](\d{2,4}))?\b/i);
   if (!m) return null;
-  const month = MONTHS[m[2]] ?? MONTHS[clean(m[2])];
+  const month = MONTHS[m[2]];
   return month ? { day:Number(m[1]), month, year:m[3] ? Number(m[3].length === 2 ? `20${m[3]}` : m[3]) : fallbackYear } : null;
 }
 
@@ -62,19 +52,17 @@ function iso(date: {day:number;month:number;year:number}, time: {hour:number;min
 interface WeekColumn { date:{day:number;month:number;year:number}; index:number; }
 
 function findWeekColumns(rows: TableRow[]): WeekColumn[] {
-  const dates: WeekColumn[] = [];
   for (const row of rows) {
-    row.cells.forEach((cell, index) => {
-      const date = parseDate(cell);
-      if (date) dates.push({ date, index });
+    const parsed = row.cells.map((cell,index) => { const date = parseDate(cell); return date ? { date, index } : null; }).filter((x): x is WeekColumn => !!x);
+    if (parsed.length < 4) continue;
+    let year = parsed[0].date.year;
+    let previousMonth = parsed[0].date.month;
+    const normalized = parsed.map((x,i) => {
+      if (i > 0 && x.date.month < previousMonth) year += 1;
+      previousMonth = x.date.month;
+      return { ...x, date:{ ...x.date, year } };
     });
-    if (dates.length >= 4) {
-      const first = dates.slice(-Math.min(dates.length, 32));
-      const unique: WeekColumn[] = [];
-      const seen = new Set<string>();
-      for (const x of first) { const k = `${x.date.year}-${x.date.month}-${x.date.day}`; if (!seen.has(k)) { seen.add(k); unique.push(x); } }
-      if (unique.length >= 4) return unique;
-    }
+    return normalized;
   }
   return [];
 }
@@ -85,20 +73,15 @@ function prefixInfo(cells: string[]) {
   const time = parseTime(cells[timeIndex]);
   if (!time) return null;
   const prefix = cells.slice(0, timeIndex).filter(Boolean);
-  const day = prefix.find(c => DAY_RE.test(c.trim()));
-  const subject = prefix.find(c => SUBJECT_RE.test(c));
-  return { timeIndex, time, day, subject, prefix };
+  return { timeIndex, time, day:prefix.find(c => DAY_RE.test(c.trim())), subject:prefix.find(c => SUBJECT_RE.test(c)), prefix };
 }
 
-function matchesCell(cell: string, groups: StudentGroups, type: AcademicType) {
+function matchesCell(cell: string, groups: StudentGroups) {
   const c = compact(cell);
   if (!c || c === 'pasdetd' || c === '-') return false;
-  const groupValues = groupCandidates(groups);
-  if (groupValues.includes(c)) return true;
+  if (groupCandidates(groups).includes(c)) return true;
   const trinome = trinomeCandidate(groups.trinome);
-  if (type === 'kholle' && trinome !== null && /^\d{1,3}$/.test(c)) return Number(c) === trinome;
-  if (trinome !== null && /^\d{1,3}$/.test(c)) return Number(c) === trinome;
-  return false;
+  return trinome !== null && /^\d{1,3}$/.test(c) && Number(c) === trinome;
 }
 
 function titleFor(subject: string | undefined, type: AcademicType, cell: string) {
@@ -120,21 +103,15 @@ export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): Ac
       continue;
     }
     const text = row.cells.join(' · ');
-    const type = inferType(text.includes('TP') ? `${text} tp` : text);
+    const type = inferType(text);
     const subject = info.subject ?? currentSubject;
-    const dataStart = info.timeIndex + 1;
-    const weekCells = row.cells.slice(dataStart, dataStart + weeks.length);
+    const weekCells = row.cells.slice(info.timeIndex + 1, info.timeIndex + 1 + weeks.length);
     weeks.forEach((week, weekOffset) => {
       const cell = weekCells[weekOffset] ?? '';
-      if (!matchesCell(cell, groups, type)) return;
+      if (!matchesCell(cell, groups)) return;
       const startsAt = iso(week.date, info.time);
-      const end = new Date(startsAt); end.setHours(end.getHours() + 1);
-      result.push({
-        id:`generated-${row.rowIndex}-${weekOffset}-${compact(cell)}`,
-        origin:'generated', type, title:titleFor(subject, type, cell), startsAt,
-        endsAt:end.toISOString().slice(0,16), description:`${text} · Semaine du ${week.date.day}/${week.date.month}`, completed:false,
-        sourceKey:`row-${row.rowIndex}-week-${weekOffset}`,
-      });
+      const end = new Date(startsAt); end.setHours(end.getHours() + (type === 'course' ? 2 : 1));
+      result.push({ id:`generated-${row.rowIndex}-${weekOffset}-${compact(cell)}`, origin:'generated', type, title:titleFor(subject, type, cell), startsAt, endsAt:end.toISOString().slice(0,16), description:`${text} · Semaine du ${week.date.day}/${week.date.month}`, completed:false, sourceKey:`row-${row.rowIndex}-week-${weekOffset}` });
     });
   }
   return dedupe(result);
@@ -142,14 +119,11 @@ export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): Ac
 
 function fallbackRowsToAcademicItems(rows: TableRow[], groups: StudentGroups): AcademicItem[] {
   return rows.filter(row => rowMatchesGroups(row, groups)).flatMap(row => {
-    const info = prefixInfo(row.cells);
-    if (!info) return [];
+    const info = prefixInfo(row.cells); if (!info) return [];
     const text = row.cells.join(' · ');
-    const date = row.cells.map(parseDate).find(Boolean);
-    if (!date) return [];
-    const type = inferType(text);
-    const end = new Date(iso(date!, info.time)); end.setHours(end.getHours() + 1);
-    return [{ id:`generated-${row.rowIndex}`, origin:'generated', type, title:titleFor(info.subject, type, ''), startsAt:iso(date!, info.time), endsAt:end.toISOString().slice(0,16), description:text, completed:false, sourceKey:`row-${row.rowIndex}` }];
+    const date = row.cells.map(parseDate).find(Boolean); if (!date) return [];
+    const type = inferType(text); const start = iso(date!, info.time); const end = new Date(start); end.setHours(end.getHours() + 1);
+    return [{ id:`generated-${row.rowIndex}`, origin:'generated', type, title:titleFor(info.subject, type, ''), startsAt:start, endsAt:end.toISOString().slice(0,16), description:text, completed:false, sourceKey:`row-${row.rowIndex}` }];
   });
 }
 
