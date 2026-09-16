@@ -50,7 +50,7 @@ function iso(date: {day:number;month:number;year:number}, time: {hour:number;min
 
 interface WeekColumn { date:{day:number;month:number;year:number}; index:number; }
 
-function findWeekColumns(rows: TableRow[]): WeekColumn[] {
+function findDateColumns(rows: TableRow[]): WeekColumn[] {
   for (const row of rows) {
     const parsed = row.cells.map((cell,index) => { const date = parseDate(cell); return date ? { date, index } : null; }).filter((x): x is WeekColumn => !!x);
     if (parsed.length < 4) continue;
@@ -82,15 +82,14 @@ function matchesCell(cell: string, groups: StudentGroups) {
   return trinome !== null && /^\d{1,3}$/.test(c) && Number(c) === trinome;
 }
 
-function titleFor(subject: string | undefined, type: AcademicType, cell: string) {
+function titleFor(subject: string | undefined, type: AcademicType) {
   const label = type === 'kholle' ? 'Khôlle' : type === 'course' ? 'TP' : type === 'assignment' ? 'Devoir' : type === 'exam' ? 'DS / Examen' : 'Événement';
   return `${label}${subject ? ` — ${subject}` : ''}`;
 }
 
 export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): AcademicItem[] {
-  const weeks = findWeekColumns(rows);
+  const weeks = findDateColumns(rows);
   if (!weeks.length) return fallbackRowsToAcademicItems(rows, groups);
-
   let currentSubject: string | undefined;
   const result: AcademicItem[] = [];
   for (const row of rows) {
@@ -100,19 +99,43 @@ export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): Ac
       if (subjectOnly) currentSubject = subjectOnly.trim();
       continue;
     }
-
     const text = row.cells.join(' · ');
     const weekCells = row.cells.slice(info.timeIndex + 1, info.timeIndex + 1 + weeks.length);
     const numericWeek = weekCells.some(c => /^\d{1,2}$/.test(compact(c)));
     const type = numericWeek ? 'kholle' : inferType(text);
     const subject = info.subject ?? currentSubject;
-
     weeks.forEach((week, weekOffset) => {
       const cell = weekCells[weekOffset] ?? '';
       if (!matchesCell(cell, groups)) return;
       const startsAt = iso(week.date, info.time);
       const end = new Date(startsAt); end.setHours(end.getHours() + (type === 'course' ? 2 : 1));
-      result.push({ id:`generated-${row.rowIndex}-${weekOffset}-${compact(cell)}`, origin:'generated', type, title:titleFor(subject, type, cell), startsAt, endsAt:end.toISOString().slice(0,16), description:`${text} · Semaine du ${week.date.day}/${week.date.month}`, completed:false, sourceKey:`row-${row.rowIndex}-week-${weekOffset}` });
+      result.push({ id:`generated-${row.rowIndex}-${weekOffset}-${compact(cell)}`, origin:'generated', type, title:titleFor(subject, type), startsAt, endsAt:end.toISOString().slice(0,16), description:`${text} · Semaine du ${week.date.day}/${week.date.month}`, completed:false, sourceKey:`row-${row.rowIndex}-week-${weekOffset}` });
+    });
+  }
+  return dedupe(result);
+}
+
+export function rowsToTimetableItems(rows: TableRow[]): AcademicItem[] {
+  const dates = findDateColumns(rows);
+  if (!dates.length) return fallbackTimetableRows(rows);
+  let currentSubject: string | undefined;
+  const result: AcademicItem[] = [];
+  for (const row of rows) {
+    const info = prefixInfo(row.cells);
+    if (!info) {
+      const subjectOnly = row.cells.find(c => SUBJECT_RE.test(c) && c.length < 50);
+      if (subjectOnly) currentSubject = subjectOnly.trim();
+      continue;
+    }
+    const cells = row.cells.slice(info.timeIndex + 1, info.timeIndex + 1 + dates.length);
+    dates.forEach((date, offset) => {
+      const cell = cells[offset] ?? '';
+      if (!cell || /^[-–—]$/.test(cell.trim())) return;
+      const text = [info.subject ?? currentSubject, cell].filter(Boolean).join(' — ');
+      const type = inferType(text);
+      const startsAt = iso(date.date, info.time);
+      const end = new Date(startsAt); end.setHours(end.getHours() + (type === 'course' ? 2 : 1));
+      result.push({ id:`timetable-${row.rowIndex}-${offset}`, origin:'timetable', type, title:text || 'Cours', startsAt, endsAt:end.toISOString().slice(0,16), description:row.cells.join(' · '), completed:false, sourceKey:`row-${row.rowIndex}-date-${offset}` });
     });
   }
   return dedupe(result);
@@ -121,14 +144,23 @@ export function rowsToAcademicItems(rows: TableRow[], groups: StudentGroups): Ac
 function fallbackRowsToAcademicItems(rows: TableRow[], groups: StudentGroups): AcademicItem[] {
   return rows.filter(row => rowMatchesGroups(row, groups)).flatMap(row => {
     const info = prefixInfo(row.cells); if (!info) return [];
-    const text = row.cells.join(' · ');
     const date = row.cells.map(parseDate).find(Boolean); if (!date) return [];
-    const type = inferType(text); const start = iso(date!, info.time); const end = new Date(start); end.setHours(end.getHours() + 1);
-    return [{ id:`generated-${row.rowIndex}`, origin:'generated', type, title:titleFor(info.subject, type, ''), startsAt:start, endsAt:end.toISOString().slice(0,16), description:text, completed:false, sourceKey:`row-${row.rowIndex}` }];
+    const text = row.cells.join(' · '); const type = inferType(text); const start = iso(date!, info.time); const end = new Date(start); end.setHours(end.getHours() + 1);
+    return [{ id:`generated-${row.rowIndex}`, origin:'generated', type, title:titleFor(info.subject, type), startsAt:start, endsAt:end.toISOString().slice(0,16), description:text, completed:false, sourceKey:`row-${row.rowIndex}` }];
+  });
+}
+
+function fallbackTimetableRows(rows: TableRow[]): AcademicItem[] {
+  return rows.flatMap(row => {
+    const info = prefixInfo(row.cells); if (!info) return [];
+    const date = row.cells.map(parseDate).find(Boolean); if (!date) return [];
+    const cellText = row.cells.filter(c => c !== row.cells[info.timeIndex]).join(' · ');
+    const type = inferType(cellText); const start = iso(date!, info.time); const end = new Date(start); end.setHours(end.getHours() + (type === 'course' ? 2 : 1));
+    return [{ id:`timetable-${row.rowIndex}`, origin:'timetable', type, title:info.subject ?? 'Cours', startsAt:start, endsAt:end.toISOString().slice(0,16), description:cellText, completed:false, sourceKey:`row-${row.rowIndex}` }];
   });
 }
 
 function dedupe(items: AcademicItem[]) {
   const seen = new Set<string>();
-  return items.filter(item => { const key = `${item.startsAt}|${item.title}`; if (seen.has(key)) return false; seen.add(key); return true; });
+  return items.filter(item => { const key = `${item.startsAt}|${item.endsAt}|${item.title}`; if (seen.has(key)) return false; seen.add(key); return true; });
 }
