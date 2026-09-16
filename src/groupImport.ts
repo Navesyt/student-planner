@@ -1,8 +1,10 @@
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import * as XLSX from 'xlsx';
 import { extractText, isAvailable } from '@paul_sizon/expo-pdf-text-extract';
+import { recognizeText } from 'expo-ocr-kit';
 import type { ImportedDocument, StudentGroups } from './types';
-import { rowsToAcademicItems, type TableRow } from './groupPlanner';
+import { rowsToAcademicItems, rowsToTimetableItems, type TableRow } from './groupPlanner';
 
 export interface ImportedScope { document: ImportedDocument; rows: TableRow[]; }
 
@@ -19,8 +21,7 @@ async function readSpreadsheet(uri: string): Promise<TableRow[]> {
   const workbook = XLSX.read(data, { type:'array', cellDates:true });
   const rows: TableRow[] = [];
   workbook.SheetNames.forEach(name => {
-    const sheet = workbook.Sheets[name];
-    const values = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header:1, raw:false, defval:'' });
+    const values = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header:1, raw:false, defval:'' });
     rows.push(...rowsFromSheet(values));
   });
   return rows;
@@ -41,7 +42,6 @@ function rowsFromPdfText(text: string): TableRow[] {
   const lines = text.split(/\r?\n/).filter(line => line.trim());
   const header = lines.find(line => [...line.matchAll(DATE_TOKEN)].length >= 4);
   if (!header) return lines.map((line,rowIndex) => ({ rowIndex, cells:line.split(/\t| {2,}|;/).map(x=>x.trim()).filter(Boolean) }));
-
   const matches = [...header.matchAll(DATE_TOKEN)];
   const positions = matches.map(m => m.index ?? 0);
   const gaps = positions.slice(1).map((p,i)=>p-positions[i]);
@@ -51,15 +51,18 @@ function rowsFromPdfText(text: string): TableRow[] {
 
 async function readPdf(uri: string): Promise<TableRow[]> {
   if (!isAvailable()) throw new Error('La lecture PDF nécessite une development build Expo, pas Expo Go.');
-  const text = await extractText(uri);
-  return rowsFromPdfText(text);
+  return rowsFromPdfText(await extractText(uri));
 }
 
-export async function pickAndParseScope(): Promise<ImportedScope | null> {
+function rowsFromOcr(text: string): TableRow[] {
+  return text.split(/\r?\n/).map((line,rowIndex) => ({ rowIndex, cells:line.split(/\s{2,}|\t|\|/).map(x=>x.trim()).filter(Boolean) })).filter(row=>row.cells.length>0);
+}
+
+async function pickDocument(): Promise<ImportedScope | null> {
   const result = await DocumentPicker.getDocumentAsync({ type:['application/pdf','text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'], copyToCacheDirectory:true, multiple:false });
   if (result.canceled) return null;
   const asset = result.assets[0];
-  const name = asset.name || 'scope';
+  const name = asset.name || 'document';
   const lower = name.toLowerCase();
   const format: ImportedDocument['format'] = lower.endsWith('.pdf') ? 'pdf' : lower.endsWith('.csv') ? 'csv' : 'xlsx';
   const rows = format === 'pdf' ? await readPdf(asset.uri) : await readSpreadsheet(asset.uri);
@@ -67,7 +70,25 @@ export async function pickAndParseScope(): Promise<ImportedScope | null> {
 }
 
 export async function importScopeForStudent(groups: StudentGroups) {
-  const scope = await pickAndParseScope();
+  const scope = await pickDocument();
   if (!scope) return null;
   return { ...scope, items: rowsToAcademicItems(scope.rows, groups) };
+}
+
+export async function importTimetableDocument() {
+  const timetable = await pickDocument();
+  if (!timetable) return null;
+  return { ...timetable, items: rowsToTimetableItems(timetable.rows) };
+}
+
+export async function scanTimetableImage() {
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) throw new Error('Autorisation caméra refusée.');
+  const result = await ImagePicker.launchCameraAsync({ mediaTypes:['images'], quality:1 });
+  if (result.canceled) return null;
+  const asset = result.assets[0];
+  const ocr = await recognizeText(asset.uri);
+  const rows = rowsFromOcr(ocr.text);
+  const document: ImportedDocument = { id:id(), name:'Emploi du temps scanné', format:'image', importedAt:new Date().toISOString() };
+  return { document, rows, items:rowsToTimetableItems(rows) };
 }
