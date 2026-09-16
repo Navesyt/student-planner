@@ -5,8 +5,24 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-notifications", "expo-sqlite", "expo-document-picker", "@paul_sizon/expo-pdf-text-extract"],
-    "ios": { "supportsTablet": true },
-    "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" } }
+    "plugins": [
+      "expo-notifications",
+      "expo-sqlite",
+      "expo-document-picker",
+      "expo-image-picker",
+      "expo-ocr-kit",
+      "@paul_sizon/expo-pdf-text-extract"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.navesyt.studentplanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Student Planner utilise la caméra pour scanner ton emploi du temps."
+      }
+    },
+    "android": {
+      "package": "com.navesyt.studentplanner",
+      "adaptiveIcon": { "backgroundColor": "#ffffff" }
+    }
   }
 }
