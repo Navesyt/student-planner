@@ -10,8 +10,7 @@
       "expo-sqlite",
       "expo-document-picker",
       "expo-image-picker",
-      "expo-ocr-kit",
-      "@paul_sizon/expo-pdf-text-extract"
+      "expo-ocr-kit"
     ],
     "ios": {
       "supportsTablet": true,
