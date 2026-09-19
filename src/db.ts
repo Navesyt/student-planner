@@ -1,75 +1,63 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { AcademicItem, Grade, ImportedDocument, InventoryItem, StudentGroups, Subject } from './types';
+import type { AcademicItem, Grade, ImportedDocument, InventoryItem, Recurrence, StudentGroups, Subject } from './types';
 
-async function migrateAcademicTable(db: SQLiteDatabase) {
-  const schema = await db.getFirstAsync<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type='table' AND name='academic_items'");
-  if (!schema?.sql || schema.sql.includes("'timetable'")) return;
-  await db.execAsync(`
-    ALTER TABLE academic_items RENAME TO academic_items_legacy;
-    CREATE TABLE academic_items (
-      id TEXT PRIMARY KEY NOT NULL, origin TEXT NOT NULL CHECK(origin IN ('manual','timetable','generated')),
-      type TEXT NOT NULL, title TEXT NOT NULL, subject_id TEXT, starts_at TEXT NOT NULL, ends_at TEXT NOT NULL,
-      location TEXT, description TEXT, completed INTEGER NOT NULL DEFAULT 0,
-      source_document_id TEXT, source_key TEXT,
-      FOREIGN KEY(subject_id) REFERENCES subjects(id)
-    );
-    INSERT INTO academic_items (id,origin,type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key)
-      SELECT id,
-        CASE WHEN origin='manual' THEN 'manual' ELSE 'timetable' END,
-        type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key
-      FROM academic_items_legacy;
-    DROP TABLE academic_items_legacy;
-  `);
+async function columns(db:SQLiteDatabase,table:string){return db.getAllAsync<{name:string}>(`PRAGMA table_info(${table})`);}
+async function ensureColumn(db:SQLiteDatabase,table:string,name:string,definition:string){const cols=await columns(db,table);if(!cols.some(c=>c.name===name))await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);}
+async function migrateAcademicTable(db:SQLiteDatabase){
+ const schema=await db.getFirstAsync<{sql:string}>("SELECT sql FROM sqlite_master WHERE type='table' AND name='academic_items'");
+ if(!schema?.sql||schema.sql.includes("'timetable'"))return;
+ await db.execAsync(`
+ ALTER TABLE academic_items RENAME TO academic_items_legacy;
+ CREATE TABLE academic_items(id TEXT PRIMARY KEY NOT NULL,origin TEXT NOT NULL CHECK(origin IN ('manual','timetable','generated')),type TEXT NOT NULL,title TEXT NOT NULL,subject_id TEXT,reason TEXT,starts_at TEXT NOT NULL,ends_at TEXT NOT NULL,location TEXT,description TEXT,completed INTEGER NOT NULL DEFAULT 0,linked_item_id TEXT,series_id TEXT,source_document_id TEXT,source_key TEXT,FOREIGN KEY(subject_id) REFERENCES subjects(id));
+ INSERT INTO academic_items(id,origin,type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key)
+ SELECT id,CASE WHEN origin='manual' THEN 'manual' ELSE 'timetable' END,type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key FROM academic_items_legacy;
+ DROP TABLE academic_items_legacy;`);
 }
-
-export async function initDb(db: SQLiteDatabase) {
-  await db.execAsync(`PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;`);
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS academic_items (
-      id TEXT PRIMARY KEY NOT NULL, origin TEXT NOT NULL CHECK(origin IN ('manual','timetable','generated')),
-      type TEXT NOT NULL, title TEXT NOT NULL, subject_id TEXT, starts_at TEXT NOT NULL, ends_at TEXT NOT NULL,
-      location TEXT, description TEXT, completed INTEGER NOT NULL DEFAULT 0,
-      source_document_id TEXT, source_key TEXT,
-      FOREIGN KEY(subject_id) REFERENCES subjects(id)
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_academic_source ON academic_items(origin, source_document_id, source_key);
-    CREATE TABLE IF NOT EXISTS inventory_items (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0, low_stock_threshold INTEGER NOT NULL DEFAULT 1);
-    CREATE TABLE IF NOT EXISTS grades (id TEXT PRIMARY KEY NOT NULL, subject_id TEXT NOT NULL, type TEXT NOT NULL, value REAL NOT NULL CHECK(value >= 0 AND value <= 20), coefficient REAL NOT NULL DEFAULT 1, date TEXT NOT NULL, note TEXT, FOREIGN KEY(subject_id) REFERENCES subjects(id));
-    CREATE TABLE IF NOT EXISTS student_profile (id INTEGER PRIMARY KEY CHECK(id=1), group_name TEXT, third_group TEXT, half_group TEXT, trinome TEXT);
-    CREATE TABLE IF NOT EXISTS imported_documents (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, format TEXT NOT NULL, imported_at TEXT NOT NULL);
-  `);
-  await migrateAcademicTable(db);
-  const subjectCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM subjects');
-  if (!subjectCount?.n) await db.runAsync('INSERT INTO subjects VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)', 'maths','Maths','#4F46E5','physics','Physique','#0891B2','cs','Informatique','#16A34A','philo','Philosophie','#D97706');
-  const inventoryCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM inventory_items');
-  if (!inventoryCount?.n) await db.runAsync('INSERT INTO inventory_items VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)', 'pens','Stylos','Papeterie',6,2,'notebook','Cahiers','Papeterie',2,1,'usb','Clé USB','Informatique',1,1);
+export async function initDb(db:SQLiteDatabase){
+ await db.execAsync(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`);
+ await db.execAsync(`
+ CREATE TABLE IF NOT EXISTS subjects(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,color TEXT NOT NULL,teacher TEXT);
+ CREATE TABLE IF NOT EXISTS academic_items(id TEXT PRIMARY KEY NOT NULL,origin TEXT NOT NULL CHECK(origin IN ('manual','timetable','generated')),type TEXT NOT NULL,title TEXT NOT NULL,subject_id TEXT,reason TEXT,starts_at TEXT NOT NULL,ends_at TEXT NOT NULL,location TEXT,description TEXT,completed INTEGER NOT NULL DEFAULT 0,linked_item_id TEXT,series_id TEXT,source_document_id TEXT,source_key TEXT,FOREIGN KEY(subject_id) REFERENCES subjects(id));
+ CREATE UNIQUE INDEX IF NOT EXISTS idx_academic_source ON academic_items(origin,source_document_id,source_key);
+ CREATE TABLE IF NOT EXISTS inventory_items(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,category TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,low_stock_threshold INTEGER NOT NULL DEFAULT 1);
+ CREATE TABLE IF NOT EXISTS grades(id TEXT PRIMARY KEY NOT NULL,subject_id TEXT NOT NULL,type TEXT NOT NULL,value REAL NOT NULL CHECK(value>=0 AND value<=20),coefficient REAL NOT NULL DEFAULT 1,date TEXT NOT NULL,note TEXT,FOREIGN KEY(subject_id) REFERENCES subjects(id));
+ CREATE TABLE IF NOT EXISTS student_profile(id INTEGER PRIMARY KEY CHECK(id=1),group_name TEXT,third_group TEXT,half_group TEXT,trinome TEXT);
+ CREATE TABLE IF NOT EXISTS imported_documents(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,format TEXT NOT NULL,imported_at TEXT NOT NULL);`);
+ await migrateAcademicTable(db);await ensureColumn(db,'subjects','teacher','TEXT');await ensureColumn(db,'academic_items','reason','TEXT');await ensureColumn(db,'academic_items','linked_item_id','TEXT');await ensureColumn(db,'academic_items','series_id','TEXT');
+ const sc=await db.getFirstAsync<{n:number}>('SELECT COUNT(*) n FROM subjects');if(!sc?.n)await db.runAsync('INSERT INTO subjects VALUES(?,?,?,?),(?,?,?,?),(?,?,?,?),(?,?,?,?)','maths','Maths','#4F46E5','', 'physics','Physique','#0891B2','', 'cs','Informatique','#16A34A','', 'philo','Philosophie','#D97706','');
+ const ic=await db.getFirstAsync<{n:number}>('SELECT COUNT(*) n FROM inventory_items');if(!ic?.n)await db.runAsync('INSERT INTO inventory_items VALUES(?,?,?,?,?),(?,?,?,?,?),(?,?,?,?,?)','pens','Stylos','Papeterie',6,2,'notebook','Cahiers','Papeterie',2,1,'usb','Clé USB','Informatique',1,1);
 }
-
-export async function listSubjects(db: SQLiteDatabase): Promise<Subject[]> { return db.getAllAsync<Subject>('SELECT id,name,color FROM subjects ORDER BY name'); }
-function overlaps(a: AcademicItem,b: AcademicItem) { return new Date(a.startsAt).getTime() < new Date(b.endsAt).getTime() && new Date(b.startsAt).getTime() < new Date(a.endsAt).getTime(); }
-export async function listAcademic(db: SQLiteDatabase): Promise<AcademicItem[]> {
-  const rows = await db.getAllAsync<any>('SELECT * FROM academic_items ORDER BY starts_at');
-  const items: AcademicItem[] = rows.map(r=>({id:r.id,origin:r.origin,type:r.type,title:r.title,subjectId:r.subject_id??undefined,startsAt:r.starts_at,endsAt:r.ends_at,location:r.location??undefined,description:r.description??undefined,completed:!!r.completed,sourceDocumentId:r.source_document_id??undefined,sourceKey:r.source_key??undefined}));
-  const scopes=items.filter(x=>x.origin==='generated');
-  return items.filter(x=>x.origin!=='timetable'||!scopes.some(scope=>overlaps(x,scope))).sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
+export async function listSubjects(db:SQLiteDatabase):Promise<Subject[]>{return db.getAllAsync<Subject>('SELECT id,name,color,teacher FROM subjects ORDER BY name');}
+function mapAcademic(r:any):AcademicItem{return{id:r.id,origin:r.origin,type:r.type,title:r.title,subjectId:r.subject_id??undefined,reason:r.reason??undefined,startsAt:r.starts_at,endsAt:r.ends_at,location:r.location??undefined,description:r.description??undefined,completed:!!r.completed,linkedItemId:r.linked_item_id??undefined,seriesId:r.series_id??undefined,sourceDocumentId:r.source_document_id??undefined,sourceKey:r.source_key??undefined};}
+function overlaps(a:AcademicItem,b:AcademicItem){return new Date(a.startsAt).getTime()<new Date(b.endsAt).getTime()&&new Date(b.startsAt).getTime()<new Date(a.endsAt).getTime();}
+export async function listAcademic(db:SQLiteDatabase):Promise<AcademicItem[]>{const rows=await db.getAllAsync<any>('SELECT * FROM academic_items ORDER BY starts_at');const items=rows.map(mapAcademic),scopes=items.filter(x=>x.origin==='generated');return items.filter(x=>x.origin!=='timetable'||!scopes.some(s=>overlaps(x,s))).sort((a,b)=>a.startsAt.localeCompare(b.startsAt));}
+export async function listInventory(db:SQLiteDatabase):Promise<InventoryItem[]>{return db.getAllAsync<InventoryItem>('SELECT id,name,category,quantity,low_stock_threshold lowStockThreshold FROM inventory_items ORDER BY category,name');}
+export async function listGrades(db:SQLiteDatabase):Promise<Grade[]>{return db.getAllAsync<Grade>('SELECT id,subject_id subjectId,type,value,coefficient,date,note FROM grades ORDER BY date DESC');}
+export async function getStudentGroups(db:SQLiteDatabase):Promise<StudentGroups>{const r=await db.getFirstAsync<any>('SELECT group_name,third_group,half_group,trinome FROM student_profile WHERE id=1');return{group:r?.group_name??undefined,thirdGroup:r?.third_group??undefined,halfGroup:r?.half_group??undefined,trinome:r?.trinome??undefined};}
+export async function saveStudentGroups(db:SQLiteDatabase,g:StudentGroups){await db.runAsync('INSERT INTO student_profile(id,group_name,third_group,half_group,trinome) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET group_name=excluded.group_name,third_group=excluded.third_group,half_group=excluded.half_group,trinome=excluded.trinome',g.group??null,g.thirdGroup??null,g.halfGroup??null,g.trinome??null);}
+async function insertAcademic(db:SQLiteDatabase,x:AcademicItem){await db.runAsync('INSERT INTO academic_items(id,origin,type,title,subject_id,reason,starts_at,ends_at,location,description,completed,linked_item_id,series_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',x.id,'manual',x.type,x.title,x.subjectId??null,x.reason??null,x.startsAt,x.endsAt,x.location??null,x.description??null,x.completed?1:0,x.linkedItemId??null,x.seriesId??null);}
+export async function addManualItem(db:SQLiteDatabase,x:AcademicItem){await insertAcademic(db,x);}
+function shiftDate(v:string,kind:Recurrence){const d=new Date(v);if(kind==='daily')d.setDate(d.getDate()+1);else if(kind==='weekly')d.setDate(d.getDate()+7);else if(kind==='monthly'){const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+1);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));}return d.toISOString().slice(0,16);}
+export async function addManualItemRecurring(db:SQLiteDatabase,x:AcademicItem,recurrence:Recurrence,until?:string){
+ if(recurrence==='none'){await insertAcademic(db,x);return;}if(!until||new Date(until).getTime()<new Date(x.startsAt).getTime())throw new Error('La date de fin de récurrence doit être après le début.');
+ const seriesId=x.seriesId||x.id;let start=x.startsAt,end=x.endsAt,first=true;
+ await db.withTransactionAsync(async()=>{while(new Date(start).getTime()<=new Date(until).getTime()){const item={...x,id:first?x.id:seriesId+'-'+start.replace(/[^0-9]/g,''),startsAt:start,endsAt:end,seriesId};await insertAcademic(db,item);first=false;start=shiftDate(start,recurrence);end=shiftDate(end,recurrence);}});
 }
-export async function listInventory(db: SQLiteDatabase): Promise<InventoryItem[]> { return db.getAllAsync<InventoryItem>('SELECT id,name,category,quantity,low_stock_threshold as lowStockThreshold FROM inventory_items ORDER BY category,name'); }
-export async function listGrades(db: SQLiteDatabase): Promise<Grade[]> { return db.getAllAsync<Grade>('SELECT id,subject_id as subjectId,type,value,coefficient,date,note FROM grades ORDER BY date DESC'); }
-export async function getStudentGroups(db: SQLiteDatabase): Promise<StudentGroups> { const r=await db.getFirstAsync<any>('SELECT group_name,third_group,half_group,trinome FROM student_profile WHERE id=1'); return {group:r?.group_name??undefined,thirdGroup:r?.third_group??undefined,halfGroup:r?.half_group??undefined,trinome:r?.trinome??undefined}; }
-export async function saveStudentGroups(db: SQLiteDatabase,g:StudentGroups){await db.runAsync('INSERT INTO student_profile (id,group_name,third_group,half_group,trinome) VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET group_name=excluded.group_name,third_group=excluded.third_group,half_group=excluded.half_group,trinome=excluded.trinome',g.group??null,g.thirdGroup??null,g.halfGroup??null,g.trinome??null);}
-export async function replaceGeneratedItems(db:SQLiteDatabase,document:ImportedDocument,items:AcademicItem[]){await db.withTransactionAsync(async()=>{await db.runAsync("DELETE FROM academic_items WHERE origin='generated'");await db.runAsync('INSERT OR REPLACE INTO imported_documents (id,name,format,imported_at) VALUES (?,?,?,?)',document.id,document.name,document.format,document.importedAt);for(const x of items) await db.runAsync('INSERT INTO academic_items (id,origin,type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',x.id,'generated',x.type,x.title,x.subjectId??null,x.startsAt,x.endsAt,x.location??null,x.description??null,0,document.id,x.sourceKey??x.id);});}
-export async function replaceTimetableItems(db:SQLiteDatabase,document:ImportedDocument,items:AcademicItem[]){await db.withTransactionAsync(async()=>{await db.runAsync("DELETE FROM academic_items WHERE origin='timetable'");await db.runAsync('INSERT OR REPLACE INTO imported_documents (id,name,format,imported_at) VALUES (?,?,?,?)',document.id,document.name,document.format,document.importedAt);for(const x of items) await db.runAsync('INSERT INTO academic_items (id,origin,type,title,subject_id,starts_at,ends_at,location,description,completed,source_document_id,source_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',x.id,'timetable',x.type,x.title,x.subjectId??null,x.startsAt,x.endsAt,x.location??null,x.description??null,0,document.id,x.sourceKey??x.id);});}
-export async function listImportedDocuments(db:SQLiteDatabase):Promise<ImportedDocument[]> { return db.getAllAsync<ImportedDocument>('SELECT id,name,format,imported_at as importedAt FROM imported_documents ORDER BY imported_at DESC'); }
-export async function addManualItem(db:SQLiteDatabase,x:AcademicItem){await db.runAsync('INSERT INTO academic_items (id,origin,type,title,subject_id,starts_at,ends_at,location,description,completed) VALUES (?,?,?,?,?,?,?,?,?,?)',x.id,'manual',x.type,x.title,x.subjectId??null,x.startsAt,x.endsAt,x.location??null,x.description??null,x.completed?1:0);}
-export async function updateManualItem(db:SQLiteDatabase,x:AcademicItem){if(x.origin!=='manual') throw new Error('Imported items are read-only');await db.runAsync("UPDATE academic_items SET type=?,title=?,subject_id=?,starts_at=?,ends_at=?,location=?,description=?,completed=? WHERE id=? AND origin='manual'",x.type,x.title,x.subjectId??null,x.startsAt,x.endsAt,x.location??null,x.description??null,x.completed?1:0,x.id);}
-export async function deleteManualItem(db:SQLiteDatabase,id:string){await db.runAsync("DELETE FROM academic_items WHERE id=? AND origin='manual'",id);}
+export async function updateManualItem(db:SQLiteDatabase,x:AcademicItem){if(x.origin!=='manual')throw new Error('Imported items are read-only');await db.runAsync("UPDATE academic_items SET type=?,title=?,subject_id=?,reason=?,starts_at=?,ends_at=?,location=?,description=?,completed=?,linked_item_id=? WHERE id=? AND origin='manual'",x.type,x.title,x.subjectId??null,x.reason??null,x.startsAt,x.endsAt,x.location??null,x.description??null,x.completed?1:0,x.linkedItemId??null,x.id);if(x.linkedItemId)await setAcademicLink(db,x.id,x.linkedItemId);}
+export async function deleteManualItem(db:SQLiteDatabase,id:string){const r=await db.getFirstAsync<{linked_item_id:string|null}>("SELECT linked_item_id FROM academic_items WHERE id=? AND origin='manual'",id);await db.runAsync("DELETE FROM academic_items WHERE id=? AND origin='manual'",id);if(r?.linked_item_id)await db.runAsync('UPDATE academic_items SET linked_item_id=NULL WHERE id=?',r.linked_item_id);}
 export async function toggleAcademicItem(db:SQLiteDatabase,id:string){await db.runAsync("UPDATE academic_items SET completed=1-completed WHERE id=? AND origin='manual'",id);}
-export async function addInventory(db:SQLiteDatabase,x:InventoryItem){await db.runAsync('INSERT INTO inventory_items VALUES (?,?,?,?,?)',x.id,x.name,x.category,x.quantity,x.lowStockThreshold);}
+export async function setAcademicLink(db:SQLiteDatabase,id:string,targetId?:string){const current=await db.getFirstAsync<{linked_item_id:string|null}>('SELECT linked_item_id FROM academic_items WHERE id=?',id);if(current?.linked_item_id)await db.runAsync('UPDATE academic_items SET linked_item_id=NULL WHERE id=?',current.linked_item_id);await db.runAsync('UPDATE academic_items SET linked_item_id=NULL WHERE linked_item_id=?',id);await db.runAsync('UPDATE academic_items SET linked_item_id=? WHERE id=?',targetId??null,id);if(targetId)await db.runAsync('UPDATE academic_items SET linked_item_id=? WHERE id=?',id,targetId);}
+export async function addSubject(db:SQLiteDatabase,x:Subject){await db.runAsync('INSERT INTO subjects(id,name,color,teacher) VALUES(?,?,?,?)',x.id,x.name,x.color,x.teacher??null);}
+export async function updateSubject(db:SQLiteDatabase,x:Subject){await db.runAsync('UPDATE subjects SET name=?,color=?,teacher=? WHERE id=?',x.name,x.color,x.teacher??null,x.id);}
+export async function deleteSubject(db:SQLiteDatabase,id:string){const r=await db.getFirstAsync<{n:number}>('SELECT (SELECT COUNT(*) FROM academic_items WHERE subject_id=?)+(SELECT COUNT(*) FROM grades WHERE subject_id=?) n',id,id);if((r?.n||0)>0)throw new Error('Cette matière est encore utilisée.');await db.runAsync('DELETE FROM subjects WHERE id=?',id);}
+export async function replaceGeneratedItems(db:SQLiteDatabase,document:ImportedDocument,items:AcademicItem[]){await db.withTransactionAsync(async()=>{await db.runAsync("DELETE FROM academic_items WHERE origin='generated'");await db.runAsync('INSERT OR REPLACE INTO imported_documents VALUES(?,?,?,?)',document.id,document.name,document.format,document.importedAt);for(const x of items)await db.runAsync('INSERT INTO academic_items(id,origin,type,title,subject_id,reason,starts_at,ends_at,location,description,completed,linked_item_id,series_id,source_document_id,source_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',x.id,'generated',x.type,x.title,x.subjectId??null,x.reason??null,x.startsAt,x.endsAt,x.location??null,x.description??null,0,null,null,document.id,x.sourceKey??x.id);});}
+export async function replaceTimetableItems(db:SQLiteDatabase,document:ImportedDocument,items:AcademicItem[]){await db.withTransactionAsync(async()=>{await db.runAsync("DELETE FROM academic_items WHERE origin='timetable'");await db.runAsync('INSERT OR REPLACE INTO imported_documents VALUES(?,?,?,?)',document.id,document.name,document.format,document.importedAt);for(const x of items)await db.runAsync('INSERT INTO academic_items(id,origin,type,title,subject_id,reason,starts_at,ends_at,location,description,completed,linked_item_id,series_id,source_document_id,source_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',x.id,'timetable',x.type,x.title,x.subjectId??null,x.reason??null,x.startsAt,x.endsAt,x.location??null,x.description??null,0,null,null,document.id,x.sourceKey??x.id);});}
+export async function listImportedDocuments(db:SQLiteDatabase):Promise<ImportedDocument[]>{return db.getAllAsync<ImportedDocument>('SELECT id,name,format,imported_at importedAt FROM imported_documents ORDER BY imported_at DESC');}
+export async function addInventory(db:SQLiteDatabase,x:InventoryItem){await db.runAsync('INSERT INTO inventory_items VALUES(?,?,?,?,?)',x.id,x.name,x.category,x.quantity,x.lowStockThreshold);}
 export async function updateInventory(db:SQLiteDatabase,x:InventoryItem){await db.runAsync('UPDATE inventory_items SET name=?,category=?,quantity=?,low_stock_threshold=? WHERE id=?',x.name,x.category,x.quantity,x.lowStockThreshold,x.id);}
 export async function deleteInventory(db:SQLiteDatabase,id:string){await db.runAsync('DELETE FROM inventory_items WHERE id=?',id);}
 export async function changeInventory(db:SQLiteDatabase,id:string,delta:number){await db.runAsync('UPDATE inventory_items SET quantity=MAX(0,quantity+?) WHERE id=?',delta,id);}
-export async function addGrade(db:SQLiteDatabase,x:Grade){await db.runAsync('INSERT INTO grades VALUES (?,?,?,?,?,?,?)',x.id,x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null);}
+export async function addGrade(db:SQLiteDatabase,x:Grade){await db.runAsync('INSERT INTO grades VALUES(?,?,?,?,?,?,?)',x.id,x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null);}
 export async function updateGrade(db:SQLiteDatabase,x:Grade){await db.runAsync('UPDATE grades SET subject_id=?,type=?,value=?,coefficient=?,date=?,note=? WHERE id=?',x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null,x.id);}
 export async function deleteGrade(db:SQLiteDatabase,id:string){await db.runAsync('DELETE FROM grades WHERE id=?',id);}
 export async function exportData(db:SQLiteDatabase){return{version:3 as const,exportedAt:new Date().toISOString(),subjects:await listSubjects(db),academicItems:await listAcademic(db),inventoryItems:await listInventory(db),grades:await listGrades(db),studentGroups:await getStudentGroups(db)};}
