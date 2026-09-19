@@ -1,6 +1,40 @@
 export const translations = {
-  fr: { home:'Accueil', room:'Ma chambre', planner:'Planning', grades:'Notes', settings:'Réglages', upcoming:'À venir', lowStock:'Stock faible', importScope:'Importer colloscope + TP-scope', scanTimetable:'Scanner emploi du temps', importTimetable:'Importer emploi du temps', reminder:'Rappel du soir', noEvents:'Aucun élément à venir', all:'Tout', assignments:'Devoirs', courses:'Cours', add:'Ajouter', edit:'Modifier', delete:'Supprimer', cancel:'Annuler', save:'Enregistrer', manual:'Manuel', timetable:'Emploi du temps', scope:'Colloscope + TP-scope', average:'Moyenne', globalAverage:'Moyenne générale', name:'Nom', category:'Catégorie', quantity:'Quantité', threshold:'Seuil', title:'Titre', date:'Date', type:'Type', subject:'Matière', coefficient:'Coefficient', value:'Note /20', location:'Lieu', description:'Description', done:'Terminé', noGrades:'Aucune note', exportData:'Exporter les données', localOnly:'Toutes les données restent sur cet appareil.', language:'Langue', groups:'Mes groupes', group:'Groupe principal', thirdGroup:'Tiers-groupe', halfGroup:'Demi-groupe', trinome:'Trinôme', precedence:'Le colloscope / TP-scope remplace les créneaux de l’emploi du temps en cas de conflit.' },
-  en: { home:'Home', room:'My room', planner:'Planner', grades:'Grades', settings:'Settings', upcoming:'Upcoming', lowStock:'Low stock', importScope:'Import khôlle + TP scope', scanTimetable:'Scan timetable', importTimetable:'Import timetable', reminder:'Evening reminder', noEvents:'Nothing upcoming', all:'All', assignments:'Assignments', courses:'Courses', add:'Add', edit:'Edit', delete:'Delete', cancel:'Cancel', save:'Save', manual:'Manual', timetable:'Timetable', scope:'Khôlle + TP scope', average:'Average', globalAverage:'Overall average', name:'Name', category:'Category', quantity:'Quantity', threshold:'Threshold', title:'Title', date:'Date', type:'Type', subject:'Subject', coefficient:'Coefficient', value:'Grade /20', location:'Location', description:'Description', done:'Done', noGrades:'No grades', exportData:'Export data', localOnly:'All data stays on this device.', language:'Language', groups:'My groups', group:'Main group', thirdGroup:'Third-group', halfGroup:'Half-group', trinome:'Trinôme', precedence:'The khôlle / TP scope takes precedence over timetable slots when they conflict.' }
+  fr: {
+    home:'Accueil', room:'Ma chambre', planner:'Planning', grades:'Notes', settings:'Réglages',
+    upcoming:'À venir', lowStock:'Stock faible', importScope:'Importer colloscope + TP-scope', reminder:'Rappel du soir',
+    noEvents:'Aucun élément à venir', assignments:'Devoirs', courses:'Cours', add:'Ajouter', edit:'Modifier',
+    delete:'Supprimer', cancel:'Annuler', save:'Enregistrer', manual:'Manuel', timetable:'Emploi du temps',
+    scope:'Colloscope + TP-scope', average:'Moyenne', globalAverage:'Moyenne générale', name:'Nom',
+    category:'Catégorie', quantity:'Quantité', threshold:'Seuil', title:'Titre', date:'Date', type:'Type',
+    subject:'Matière', coefficient:'Coefficient', value:'Note /20', location:'Lieu', description:'Description',
+    done:'Terminé', noGrades:'Aucune note', exportData:'Exporter les données', language:'Langue',
+    groups:'Mes groupes', group:'Groupe principal', thirdGroup:'Tiers-groupe', halfGroup:'Demi-groupe',
+    trinome:'Trinôme', precedence:'Le colloscope / TP-scope remplace les créneaux de l’emploi du temps en cas de conflit.',
+    subjects:'Mes matières', teacher:'Professeur', color:'Couleur', reason:'Raison / catégorie',
+    recurrence:'Récurrence', noRecurrence:'Aucune', daily:'Tous les jours', weekly:'Toutes les semaines',
+    monthly:'Tous les mois', until:'Jusqu’au', link:'Lier à', noLink:'Aucun lien', event:'Événement',
+    assignment:'Devoir', course:'Cours', kholle:'Khôlle', exam:'DS / Examen', previous:'Semaine précédente',
+    next:'Semaine suivante', today:'Aujourd’hui', currentWeek:'Cette semaine', linked:'Lié', addSubject:'Ajouter une matière',
+    subjectName:'Nom de la matière', subjectTeacher:'Nom du professeur', subjectColor:'Couleur hexadécimale',
+    noSubject:'Sans matière', deleteSubject:'Supprimer la matière', subjectInUse:'Cette matière est encore utilisée.',
+  },
+  en: {
+    home:'Home', room:'My room', planner:'Planner', grades:'Grades', settings:'Settings', upcoming:'Upcoming',
+    lowStock:'Low stock', importScope:'Import khôlle + TP scope', reminder:'Evening reminder', noEvents:'Nothing upcoming',
+    assignments:'Assignments', courses:'Courses', add:'Add', edit:'Edit', delete:'Delete', cancel:'Cancel', save:'Save',
+    manual:'Manual', timetable:'Timetable', scope:'Khôlle + TP scope', average:'Average', globalAverage:'Overall average',
+    name:'Name', category:'Category', quantity:'Quantity', threshold:'Threshold', title:'Title', date:'Date', type:'Type',
+    subject:'Subject', coefficient:'Coefficient', value:'Grade /20', location:'Location', description:'Description',
+    done:'Done', noGrades:'No grades', exportData:'Export data', language:'Language', groups:'My groups',
+    group:'Main group', thirdGroup:'Third-group', halfGroup:'Half-group', trinome:'Trinôme',
+    precedence:'The khôlle / TP scope takes precedence over timetable slots when they conflict.',
+    subjects:'My subjects', teacher:'Teacher', color:'Color', reason:'Reason / category', recurrence:'Recurrence',
+    noRecurrence:'None', daily:'Daily', weekly:'Weekly', monthly:'Monthly', until:'Until', link:'Link to',
+    noLink:'No link', event:'Event', assignment:'Assignment', course:'Course', kholle:'Khôlle', exam:'Exam',
+    previous:'Previous week', next:'Next week', today:'Today', currentWeek:'This week', linked:'Linked',
+    addSubject:'Add subject', subjectName:'Subject name', subjectTeacher:'Teacher name',
+    subjectColor:'Hex color', noSubject:'No subject', deleteSubject:'Delete subject', subjectInUse:'This subject is still used.',
+  }
 } as const;
 export type Locale = keyof typeof translations;
 export const t = (locale: Locale, key: keyof typeof translations.fr) => translations[locale][key];
