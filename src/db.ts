@@ -60,4 +60,18 @@ export async function changeInventory(db:SQLiteDatabase,id:string,delta:number){
 export async function addGrade(db:SQLiteDatabase,x:Grade){await db.runAsync('INSERT INTO grades VALUES(?,?,?,?,?,?,?)',x.id,x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null);}
 export async function updateGrade(db:SQLiteDatabase,x:Grade){await db.runAsync('UPDATE grades SET subject_id=?,type=?,value=?,coefficient=?,date=?,note=? WHERE id=?',x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null,x.id);}
 export async function deleteGrade(db:SQLiteDatabase,id:string){await db.runAsync('DELETE FROM grades WHERE id=?',id);}
-export async function exportData(db:SQLiteDatabase){return{version:3 as const,exportedAt:new Date().toISOString(),subjects:await listSubjects(db),academicItems:await listAcademic(db),inventoryItems:await listInventory(db),grades:await listGrades(db),studentGroups:await getStudentGroups(db)};}
+export async function exportData(db:SQLiteDatabase){
+ return {version:3 as const,exportedAt:new Date().toISOString(),subjects:await listSubjects(db),academicItems:await listAcademic(db),inventoryItems:await listInventory(db),grades:await listGrades(db),studentGroups:await getStudentGroups(db),importedDocuments:await listImportedDocuments(db)};
+}
+export async function importData(db:SQLiteDatabase,payload:any){
+ if(!payload||payload.version!==3||!Array.isArray(payload.subjects)||!Array.isArray(payload.academicItems)||!Array.isArray(payload.inventoryItems)||!Array.isArray(payload.grades))throw new Error('Fichier de sauvegarde invalide.');
+ await db.withTransactionAsync(async()=>{
+  await db.runAsync('DELETE FROM grades');await db.runAsync('DELETE FROM academic_items');await db.runAsync('DELETE FROM inventory_items');await db.runAsync('DELETE FROM subjects');await db.runAsync('DELETE FROM imported_documents');await db.runAsync('DELETE FROM student_profile');
+  for(const x of payload.subjects)await db.runAsync('INSERT INTO subjects(id,name,color,teacher) VALUES(?,?,?,?)',x.id,x.name,x.color,x.teacher??null);
+  for(const x of payload.inventoryItems)await db.runAsync('INSERT INTO inventory_items(id,name,category,quantity,low_stock_threshold) VALUES(?,?,?,?,?)',x.id,x.name,x.category,x.quantity,x.lowStockThreshold);
+  for(const x of payload.grades)await db.runAsync('INSERT INTO grades(id,subject_id,type,value,coefficient,date,note) VALUES(?,?,?,?,?,?,?)',x.id,x.subjectId,x.type,x.value,x.coefficient,x.date,x.note??null);
+  for(const x of payload.academicItems)await db.runAsync('INSERT INTO academic_items(id,origin,type,title,subject_id,reason,starts_at,ends_at,location,description,completed,linked_item_id,series_id,source_document_id,source_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',x.id,x.origin,x.type,x.title,x.subjectId??null,x.reason??null,x.startsAt,x.endsAt,x.location??null,x.description??null,x.completed?1:0,x.linkedItemId??null,x.seriesId??null,x.sourceDocumentId??null,x.sourceKey??null);
+  for(const x of payload.importedDocuments||[])await db.runAsync('INSERT INTO imported_documents(id,name,format,imported_at) VALUES(?,?,?,?)',x.id,x.name,x.format,x.importedAt);
+  const g=payload.studentGroups||{};await db.runAsync('INSERT INTO student_profile(id,group_name,third_group,half_group,trinome) VALUES(1,?,?,?,?)',g.group??null,g.thirdGroup??null,g.halfGroup??null,g.trinome??null);
+ });
+}
