@@ -13,4 +13,4 @@ export interface InventoryItem { id: string; name: string; category: string; qua
 export interface Grade { id: string; subjectId: string; type: GradeType; value: number; coefficient: number; date: string; note?: string; }
 export interface StudentGroups { group?: string; thirdGroup?: string; halfGroup?: string; trinome?: string; }
 export interface ImportedDocument { id: string; name: string; format: 'pdf' | 'xlsx' | 'csv' | 'image'; importedAt: string; }
-export interface ExportPayload { version: 3; exportedAt: string; subjects: Subject[]; academicItems: AcademicItem[]; inventoryItems: InventoryItem[]; grades: Grade[]; studentGroups: StudentGroups; }
+export interface ExportPayload { version: 3; exportedAt: string; subjects: Subject[]; academicItems: AcademicItem[]; inventoryItems: InventoryItem[]; grades: Grade[]; studentGroups: StudentGroups; importedDocuments?: ImportedDocument[]; }
