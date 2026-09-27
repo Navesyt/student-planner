@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { AcademicItem, Grade, ImportedDocument, InventoryItem, Recurrence, StudentGroups, Subject } from './types';
+import type { AcademicItem, Grade, ImportedDocument, InventoryItem, PersonalCategory, PersonalItem, Recurrence, StudentGroups, Subject } from './types';
 
 async function columns(db:SQLiteDatabase,table:string){return db.getAllAsync<{name:string}>(`PRAGMA table_info(${table})`);}
 async function ensureColumn(db:SQLiteDatabase,table:string,name:string,definition:string){const cols=await columns(db,table);if(!cols.some(c=>c.name===name))await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);}
@@ -22,7 +22,7 @@ export async function initDb(db:SQLiteDatabase){
  CREATE TABLE IF NOT EXISTS inventory_items(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,category TEXT NOT NULL,quantity INTEGER NOT NULL DEFAULT 0,low_stock_threshold INTEGER NOT NULL DEFAULT 1);
  CREATE TABLE IF NOT EXISTS grades(id TEXT PRIMARY KEY NOT NULL,subject_id TEXT NOT NULL,type TEXT NOT NULL,value REAL NOT NULL CHECK(value>=0 AND value<=20),coefficient REAL NOT NULL DEFAULT 1,date TEXT NOT NULL,note TEXT,FOREIGN KEY(subject_id) REFERENCES subjects(id));
  CREATE TABLE IF NOT EXISTS student_profile(id INTEGER PRIMARY KEY CHECK(id=1),group_name TEXT,third_group TEXT,half_group TEXT,trinome TEXT);
- CREATE TABLE IF NOT EXISTS imported_documents(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,format TEXT NOT NULL,imported_at TEXT NOT NULL);`);
+ CREATE TABLE IF NOT EXISTS imported_documents(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,format TEXT NOT NULL,imported_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS personal_categories(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,color TEXT NOT NULL); CREATE TABLE IF NOT EXISTS personal_items(id TEXT PRIMARY KEY NOT NULL,category_id TEXT NOT NULL,title TEXT NOT NULL,date TEXT,note TEXT,completed INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(category_id) REFERENCES personal_categories(id) ON DELETE CASCADE);`);
  await migrateAcademicTable(db);await ensureColumn(db,'subjects','teacher','TEXT');await ensureColumn(db,'academic_items','reason','TEXT');await ensureColumn(db,'academic_items','linked_item_id','TEXT');await ensureColumn(db,'academic_items','series_id','TEXT');
  const sc=await db.getFirstAsync<{n:number}>('SELECT COUNT(*) n FROM subjects');if(!sc?.n)await db.runAsync('INSERT INTO subjects VALUES(?,?,?,?),(?,?,?,?),(?,?,?,?),(?,?,?,?)','maths','Maths','#4F46E5','', 'physics','Physique','#0891B2','', 'cs','Informatique','#16A34A','', 'philo','Philosophie','#D97706','');
  const ic=await db.getFirstAsync<{n:number}>('SELECT COUNT(*) n FROM inventory_items');if(!ic?.n)await db.runAsync('INSERT INTO inventory_items VALUES(?,?,?,?,?),(?,?,?,?,?),(?,?,?,?,?)','pens','Stylos','Papeterie',6,2,'notebook','Cahiers','Papeterie',2,1,'usb','Clé USB','Informatique',1,1);
@@ -75,3 +75,12 @@ export async function importData(db:SQLiteDatabase,payload:any){
   const g=payload.studentGroups||{};await db.runAsync('INSERT INTO student_profile(id,group_name,third_group,half_group,trinome) VALUES(1,?,?,?,?)',g.group??null,g.thirdGroup??null,g.halfGroup??null,g.trinome??null);
  });
 }
+export async function listPersonalCategories(db:SQLiteDatabase):Promise<PersonalCategory[]>{return db.getAllAsync<PersonalCategory>('SELECT id,name,color FROM personal_categories ORDER BY name');}
+export async function addPersonalCategory(db:SQLiteDatabase,x:PersonalCategory){await db.runAsync('INSERT INTO personal_categories(id,name,color) VALUES(?,?,?)',x.id,x.name,x.color);}
+export async function updatePersonalCategory(db:SQLiteDatabase,x:PersonalCategory){await db.runAsync('UPDATE personal_categories SET name=?,color=? WHERE id=?',x.name,x.color,x.id);}
+export async function deletePersonalCategory(db:SQLiteDatabase,id:string){await db.runAsync('DELETE FROM personal_categories WHERE id=?',id);}
+export async function listPersonalItems(db:SQLiteDatabase):Promise<PersonalItem[]>{return db.getAllAsync<PersonalItem>('SELECT id,category_id categoryId,title,date,note,completed FROM personal_items ORDER BY CASE WHEN date IS NULL THEN 1 ELSE 0 END,date');}
+export async function addPersonalItem(db:SQLiteDatabase,x:PersonalItem){await db.runAsync('INSERT INTO personal_items(id,category_id,title,date,note,completed) VALUES(?,?,?,?,?,?)',x.id,x.categoryId,x.title,x.date??null,x.note??null,x.completed?1:0);}
+export async function updatePersonalItem(db:SQLiteDatabase,x:PersonalItem){await db.runAsync('UPDATE personal_items SET category_id=?,title=?,date=?,note=?,completed=? WHERE id=?',x.categoryId,x.title,x.date??null,x.note??null,x.completed?1:0,x.id);}
+export async function deletePersonalItem(db:SQLiteDatabase,id:string){await db.runAsync('DELETE FROM personal_items WHERE id=?',id);}
+export async function togglePersonalItem(db:SQLiteDatabase,id:string){await db.runAsync('UPDATE personal_items SET completed=1-completed WHERE id=?',id);}
