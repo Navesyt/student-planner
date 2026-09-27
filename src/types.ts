@@ -12,5 +12,7 @@ export interface AcademicItem {
 export interface InventoryItem { id: string; name: string; category: string; quantity: number; lowStockThreshold: number; }
 export interface Grade { id: string; subjectId: string; type: GradeType; value: number; coefficient: number; date: string; note?: string; }
 export interface StudentGroups { group?: string; thirdGroup?: string; halfGroup?: string; trinome?: string; }
+export interface PersonalCategory { id: string; name: string; color: string; }
+export interface PersonalItem { id: string; categoryId: string; title: string; date?: string; note?: string; completed: boolean; }
 export interface ImportedDocument { id: string; name: string; format: 'pdf' | 'xlsx' | 'csv' | 'image'; importedAt: string; }
 export interface ExportPayload { version: 3; exportedAt: string; subjects: Subject[]; academicItems: AcademicItem[]; inventoryItems: InventoryItem[]; grades: Grade[]; studentGroups: StudentGroups; importedDocuments?: ImportedDocument[]; }
