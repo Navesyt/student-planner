@@ -15,4 +15,4 @@ export interface StudentGroups { group?: string; thirdGroup?: string; halfGroup?
 export interface PersonalCategory { id: string; name: string; color: string; }
 export interface PersonalItem { id: string; categoryId: string; title: string; date?: string; note?: string; completed: boolean; }
 export interface ImportedDocument { id: string; name: string; format: 'pdf' | 'xlsx' | 'csv' | 'image'; importedAt: string; }
-export interface ExportPayload { version: 4; exportedAt: string; subjects: Subject[]; academicItems: AcademicItem[]; inventoryItems: InventoryItem[]; grades: Grade[]; studentGroups: StudentGroups; importedDocuments?: ImportedDocument[]; }
+export interface ExportPayload { version: 4; exportedAt: string; subjects: Subject[]; academicItems: AcademicItem[]; inventoryItems: InventoryItem[]; grades: Grade[]; studentGroups: StudentGroups; importedDocuments?: ImportedDocument[]; personalCategories?: PersonalCategory[]; personalItems?: PersonalItem[]; eveningReminderEnabled?: boolean; eveningReminderTime?: string; }
