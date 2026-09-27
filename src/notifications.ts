@@ -9,10 +9,12 @@ export async function requestNotificationPermission() {
   return result.granted;
 }
 
-export async function scheduleEveningReminder(body: string) {
+export async function scheduleEveningReminder(body: string,hour=19,minute=0) {
   const ok = await requestNotificationPermission();
   if (!ok) return false;
   await Notifications.cancelAllScheduledNotificationsAsync();
-  await Notifications.scheduleNotificationAsync({ content: { title: 'Student Planner', body, sound: undefined }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 19, minute: 0 } });
+  await Notifications.scheduleNotificationAsync({ content: { title: 'Student Planner', body, sound: undefined }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute } });
   return true;
 }
+
+export async function cancelEveningReminder(){await Notifications.cancelAllScheduledNotificationsAsync();}
