@@ -1,6 +1,6 @@
 export const translations = {
   fr: {
-    home:'Accueil', room:'Ma chambre', planner:'Planning', grades:'Notes', settings:'Réglages',
+    home:'Accueil', room:'Ma chambre', school:'Scolarité', planner:'Planning', grades:'Notes', settings:'Réglages',
     upcoming:'À venir', lowStock:'Stock faible', importScope:'Importer colloscope + TP-scope', reminder:'Rappel du soir',
     noEvents:'Aucun élément à venir', assignments:'Devoirs', courses:'Cours', add:'Ajouter', edit:'Modifier',
     delete:'Supprimer', cancel:'Annuler', save:'Enregistrer', manual:'Manuel', timetable:'Emploi du temps',
@@ -19,7 +19,7 @@ export const translations = {
     noSubject:'Sans matière', deleteSubject:'Supprimer la matière', subjectInUse:'Cette matière est encore utilisée.',
   },
   en: {
-    home:'Home', room:'My room', planner:'Planner', grades:'Grades', settings:'Settings', upcoming:'Upcoming',
+    home:'Home', room:'My room', school:'School', planner:'Planner', grades:'Grades', settings:'Settings', upcoming:'Upcoming',
     lowStock:'Low stock', importScope:'Import khôlle + TP scope', reminder:'Evening reminder', noEvents:'Nothing upcoming',
     assignments:'Assignments', courses:'Courses', add:'Add', edit:'Edit', delete:'Delete', cancel:'Cancel', save:'Save',
     manual:'Manual', timetable:'Timetable', scope:'Khôlle + TP scope', average:'Average', globalAverage:'Overall average',
