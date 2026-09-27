@@ -5,7 +5,7 @@ import{SQLiteProvider,useSQLiteContext}from'expo-sqlite';
 import*as FileSystem from'expo-file-system/legacy';
 import*as Sharing from'expo-sharing';
 import*as DocumentPicker from'expo-document-picker';
-import{addGrade,addInventory,addManualItemRecurring,addSubject,addPersonalCategory,addPersonalItem,changeInventory,deleteGrade,deleteInventory,deleteManualItem,deleteSubject,deletePersonalCategory,deletePersonalItem,exportData,getStudentGroups,importData,initDb,listAcademic,listGrades,listInventory,listSubjects,listPersonalCategories,listPersonalItems,saveStudentGroups,setAcademicLink,toggleAcademicItem,togglePersonalItem,updateGrade,updateInventory,updateManualItem,updatePersonalCategory,updatePersonalItem,updateSubject}from'./src/db';
+import{addGrade,addInventory,addManualItemRecurring,addSubject,addPersonalCategory,addPersonalItem,changeInventory,deleteGrade,deleteInventory,deleteManualItem,deleteSubject,deletePersonalCategory,deletePersonalItem,exportData,getStudentGroups,importData,initDb,listAcademic,listGrades,listInventory,listSubjects,listPersonalCategories,listPersonalItems,saveStudentGroups,setAcademicLink,toggleAcademicItem,togglePersonalItem,updateGrade,updateInventory,updateManualItem,updatePersonalCategory,updatePersonalItem,updateSubject,getSetting,setSetting}from'./src/db';
 import{scheduleEveningReminder,cancelEveningReminder}from'./src/notifications';
 import{t,type Locale}from'./src/i18n';
 import type{AcademicItem,AcademicType,Grade,GradeType,InventoryItem,PersonalCategory,PersonalItem,Recurrence,StudentGroups,Subject}from'./src/types';
