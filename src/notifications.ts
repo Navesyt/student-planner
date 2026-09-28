@@ -1,8 +1,12 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldPlaySound: false, shouldSetBadge: true, shouldShowBanner: true, shouldShowList: true }) });
 
 export async function requestNotificationPermission() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('daily-reminder', { name: 'Rappel du jour', importance: Notifications.AndroidImportance.DEFAULT });
+  }
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
   const result = await Notifications.requestPermissionsAsync();
