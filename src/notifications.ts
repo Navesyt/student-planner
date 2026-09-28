@@ -17,7 +17,7 @@ export async function scheduleEveningReminder(body: string,hour=19,minute=0) {
   const ok = await requestNotificationPermission();
   if (!ok) return false;
   await Notifications.cancelAllScheduledNotificationsAsync();
-  await Notifications.scheduleNotificationAsync({ content: { title: 'Student Planner', body, sound: undefined, data: { channelId: 'daily-reminder' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute } });
+  await Notifications.scheduleNotificationAsync({ content: { title: 'Student Planner', body, sound: undefined }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute, channelId: 'daily-reminder' } });
   return true;
 }
 
